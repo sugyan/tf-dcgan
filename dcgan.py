@@ -76,10 +76,6 @@ class DCGAN:
         logits_from_i = self.d(input_images)
         g_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
         d_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='d')
-        for v in [v for v in g_vars if 'weights' in v.name]:
-            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(v), 1e-5))
-        for v in [v for v in d_vars if 'weights' in v.name]:
-            tf.add_to_collection('d_losses', tf.mul(tf.nn.l2_loss(v), 1e-5))
         tf.add_to_collection('g_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_i, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.zeros([self.batch_size], dtype=tf.int64))))
