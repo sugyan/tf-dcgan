@@ -96,4 +96,4 @@ class DCGAN:
         for i in range(row):
             rows.append(tf.concat(2, images[col * i + 0:col * i + col]))
         image = tf.concat(1, rows)
-        return tf.image.encode_png(tf.squeeze(image, [0]))
+        return tf.image.encode_jpeg(tf.squeeze(image, [0]))
