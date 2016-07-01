@@ -49,6 +49,7 @@ class DCGAN:
             depths = [3, depth1, depth2, depth3, depth4]
             i_depth = depths[0:4]
             o_depth = depths[1:5]
+            out = []
             with tf.variable_scope('d', reuse=reuse):
                 outputs = inputs
                 # convolution layer
@@ -60,6 +61,7 @@ class DCGAN:
                         mean, variance = tf.nn.moments(c, [0, 1, 2])
                         bn = tf.nn.batch_normalization(c, mean, variance, None, None, 1e-5)
                         outputs = tf.maximum(0.2 * bn, bn)
+                        out.append(outputs)
                 # reshepe and fully connect to 2 classes
                 with tf.variable_scope('classify'):
                     dim = 1
@@ -67,13 +69,21 @@ class DCGAN:
                         dim *= d
                     w = tf.get_variable('weights', [dim, 2], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
                     b = tf.get_variable('biases', [2], tf.float32, tf.zeros_initializer)
+                    out.append(tf.nn.bias_add(tf.matmul(tf.reshape(outputs, [-1, dim]), w), b))
             reuse = True
-            return tf.nn.bias_add(tf.matmul(tf.reshape(outputs, [-1, dim]), w), b)
+            return out
         return model
 
-    def train(self, input_images, learning_rate=0.0002, beta1=0.5, beta2=0.999):
-        logits_from_g = self.d(self.g(self.z))
-        logits_from_i = self.d(input_images)
+    def train(self, input_images, learning_rate=0.0002, beta1=0.5, beta2=0.999,
+              feature_matching=False):
+        outputs_from_g = self.d(self.g(self.z))
+        outputs_from_i = self.d(input_images)
+        logits_from_g = outputs_from_g[-1]
+        logits_from_i = outputs_from_i[-1]
+        if feature_matching:
+            features_from_g = tf.reduce_mean(outputs_from_g[-2], reduction_indices=(0))
+            features_from_i = tf.reduce_mean(outputs_from_i[-2], reduction_indices=(0))
+            tf.add_to_collection('g_losses', tf.reduce_mean(tf.abs(features_from_g - features_from_i)))
         g_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
         d_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='d')
         tf.add_to_collection('g_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
