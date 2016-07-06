@@ -83,7 +83,7 @@ class DCGAN:
         if feature_matching:
             features_from_g = tf.reduce_mean(outputs_from_g[-2], reduction_indices=(0))
             features_from_i = tf.reduce_mean(outputs_from_i[-2], reduction_indices=(0))
-            tf.add_to_collection('g_losses', tf.reduce_mean(tf.abs(features_from_g - features_from_i)))
+            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(features_from_g - features_from_i), 1e-2))
         g_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
         d_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='d')
         tf.add_to_collection('g_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
