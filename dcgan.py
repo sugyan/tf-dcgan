@@ -53,11 +53,8 @@ class DCGAN:
                 # convolution layer
                 for i in range(4):
                     with tf.variable_scope('conv%d' % i):
-                        w = tf.get_variable('weights', [5, 5, i_depth[i], o_depth[i]], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
-                        b = tf.get_variable('biases', [o_depth[i]], tf.float32, tf.zeros_initializer)
-                        c = tf.nn.bias_add(tf.nn.conv2d(outputs, w, [1, 2, 2, 1], padding='SAME'), b)
-                        bn = tf.contrib.layers.batch_norm(c)
-                        outputs = tf.maximum(0.2 * bn, bn)
+                        c = tf.contrib.layers.conv2d(outputs, o_depth[i], [5, 5], stride=2, activation_fn=None, normalizer_fn=tf.contrib.layers.batch_norm)
+                        outputs = tf.maximum(0.2 * c, c)
                         out.append(outputs)
                 # reshepe and fully connect to 2 classes
                 with tf.variable_scope('classify'):
