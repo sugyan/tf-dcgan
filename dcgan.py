@@ -25,8 +25,7 @@ class DCGAN:
                     w0 = tf.get_variable('weights', [self.z_dim, i_depth[0] * self.f_size * self.f_size], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
                     b0 = tf.get_variable('biases', [i_depth[0]], tf.float32, tf.zeros_initializer)
                     dc0 = tf.nn.bias_add(tf.reshape(tf.matmul(inputs, w0), [-1, self.f_size, self.f_size, i_depth[0]]), b0)
-                    mean0, variance0 = tf.nn.moments(dc0, [0, 1, 2])
-                    bn0 = tf.nn.batch_normalization(dc0, mean0, variance0, None, None, 1e-5)
+                    bn0 = tf.contrib.layers.batch_norm(dc0)
                     out = tf.nn.relu(bn0)
                 # deconvolution (transpose of convolution) layers
                 for i in range(4):
@@ -36,8 +35,7 @@ class DCGAN:
                         dc = tf.nn.conv2d_transpose(out, w, [self.batch_size, self.f_size * 2 ** (i + 1), self.f_size * 2 ** (i + 1), o_depth[i]], [1, 2, 2, 1])
                         out = tf.nn.bias_add(dc, b)
                         if i < 3:
-                            mean, variance = tf.nn.moments(out, [0, 1, 2])
-                            out = tf.nn.relu(tf.nn.batch_normalization(out, mean, variance, None, None, 1e-5))
+                            out = tf.nn.relu(tf.contrib.layers.batch_norm(out))
             reuse = True
             return tf.nn.tanh(out)
         return model
@@ -58,8 +56,7 @@ class DCGAN:
                         w = tf.get_variable('weights', [5, 5, i_depth[i], o_depth[i]], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
                         b = tf.get_variable('biases', [o_depth[i]], tf.float32, tf.zeros_initializer)
                         c = tf.nn.bias_add(tf.nn.conv2d(outputs, w, [1, 2, 2, 1], padding='SAME'), b)
-                        mean, variance = tf.nn.moments(c, [0, 1, 2])
-                        bn = tf.nn.batch_normalization(c, mean, variance, None, None, 1e-5)
+                        bn = tf.contrib.layers.batch_norm(c)
                         outputs = tf.maximum(0.2 * bn, bn)
                         out.append(outputs)
                 # reshepe and fully connect to 2 classes
