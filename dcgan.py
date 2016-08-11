@@ -22,11 +22,8 @@ class DCGAN:
             with tf.variable_scope('g', reuse=reuse):
                 # reshape from inputs
                 with tf.variable_scope('reshape'):
-                    w0 = tf.get_variable('weights', [self.z_dim, i_depth[0] * self.f_size * self.f_size], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
-                    b0 = tf.get_variable('biases', [i_depth[0]], tf.float32, tf.zeros_initializer)
-                    dc0 = tf.nn.bias_add(tf.reshape(tf.matmul(inputs, w0), [-1, self.f_size, self.f_size, i_depth[0]]), b0)
-                    bn0 = tf.contrib.layers.batch_norm(dc0)
-                    out = tf.nn.relu(bn0)
+                    fc = tf.contrib.layers.fully_connected(inputs, i_depth[0] * self.f_size * self.f_size, normalizer_fn=tf.contrib.layers.batch_norm)
+                    out = tf.reshape(fc, [-1, self.f_size, self.f_size, i_depth[0]])
                 # deconvolution (transpose of convolution) layers
                 for i in range(4):
                     with tf.variable_scope('conv%d' % (i + 1)):
