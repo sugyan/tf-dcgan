@@ -36,6 +36,8 @@ class DCGAN:
 
     def __discriminator(self, depth1, depth2, depth3, depth4):
         reuse = False
+        def leaky_relu(x, leak=0.2):
+            return tf.maximum(x, x * leak)
         def model(inputs):
             nonlocal reuse
             depths = [3, depth1, depth2, depth3, depth4]
@@ -47,8 +49,7 @@ class DCGAN:
                 # convolution layer
                 for i in range(4):
                     with tf.variable_scope('conv%d' % i):
-                        c = tf.contrib.layers.conv2d(outputs, o_depth[i], [5, 5], stride=2, activation_fn=None, normalizer_fn=tf.contrib.layers.batch_norm)
-                        outputs = tf.maximum(0.2 * c, c)
+                        outputs = tf.contrib.layers.conv2d(outputs, o_depth[i], [5, 5], stride=2, activation_fn=leaky_relu, normalizer_fn=tf.contrib.layers.batch_norm)
                         out.append(outputs)
                 # reshepe and fully connect to 2 classes
                 with tf.variable_scope('classify'):
