@@ -30,12 +30,9 @@ class DCGAN:
                 # deconvolution (transpose of convolution) layers
                 for i in range(4):
                     with tf.variable_scope('conv%d' % (i + 1)):
-                        w = tf.get_variable('weights', [5, 5, o_depth[i], i_depth[i]], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
-                        b = tf.get_variable('biases', [o_depth[i]], tf.float32, tf.zeros_initializer)
-                        dc = tf.nn.conv2d_transpose(out, w, [self.batch_size, self.f_size * 2 ** (i + 1), self.f_size * 2 ** (i + 1), o_depth[i]], [1, 2, 2, 1])
-                        out = tf.nn.bias_add(dc, b)
-                        if i < 3:
-                            out = tf.nn.relu(tf.contrib.layers.batch_norm(out))
+                        activation_fn = tf.nn.relu if i < 3 else None
+                        normalizer_fn = tf.contrib.layers.batch_norm if i < 3 else None
+                        out = tf.contrib.layers.conv2d_transpose(out, o_depth[i], [5, 5], stride=2, activation_fn=activation_fn, normalizer_fn=normalizer_fn)
             reuse = True
             return tf.nn.tanh(out)
         return model
