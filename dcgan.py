@@ -90,15 +90,16 @@ class DCGAN:
         tf.add_to_collection('g_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_i, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.zeros([self.batch_size], dtype=tf.int64))))
-        g_loss = tf.add_n(tf.get_collection('g_losses'), name='total_g_loss')
-        d_loss = tf.add_n(tf.get_collection('d_losses'), name='total_d_loss')
+        self.g_loss = tf.add_n(tf.get_collection('g_losses'), name='total_g_loss')
+        self.d_loss = tf.add_n(tf.get_collection('d_losses'), name='total_d_loss')
         g_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1, beta2=beta2).minimize(g_loss, var_list=g_vars)
         d_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1, beta2=beta2).minimize(d_loss, var_list=d_vars)
-        with tf.control_dependencies([g_optimizer, d_optimizer]):
-            train_op = tf.no_op(name='train')
-        return train_op, g_loss, d_loss
+        return {
+            'g': g_optimizer,
+            'd': d_optimizer
+        }
 
-    def generate_images(self, row=8, col=8, inputs=None):
+    def sample_images(self, row=8, col=8, inputs=None):
         if inputs is None:
             inputs = self.z
         images = tf.cast(tf.mul(tf.add(self.g(inputs)[-1], 1.0), 127.5), tf.uint8)
