@@ -26,6 +26,7 @@ class Generator:
                         outputs = tf.nn.tanh(outputs)
                     out.append(outputs)
         self.reuse = True
+        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
         return out
 
     def __call__(self, inputs):
@@ -58,6 +59,7 @@ class Discriminator:
                 b = tf.get_variable('biases', [2], tf.float32, tf.zeros_initializer)
                 out.append(tf.nn.bias_add(tf.matmul(tf.reshape(outputs, [-1, dim]), w), b))
         self.reuse = True
+        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='d')
         return out
 
     def __call__(self, inputs):
@@ -84,8 +86,6 @@ class DCGAN:
             features_from_g = tf.reduce_mean(outputs_from_g[-2], reduction_indices=(0))
             features_from_i = tf.reduce_mean(outputs_from_i[-2], reduction_indices=(0))
             tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(features_from_g - features_from_i), 1e-2))
-        g_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
-        d_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='d')
         tf.add_to_collection('g_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_i, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.zeros([self.batch_size], dtype=tf.int64))))
@@ -93,6 +93,13 @@ class DCGAN:
             'g': tf.add_n(tf.get_collection('g_losses'), name='total_g_loss'),
             'd': tf.add_n(tf.get_collection('d_losses'), name='total_d_loss')
         }
+
+    def train(self, losses, learning_rate=0.0002, beta1=0.5):
+        g_opt = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1).minimize(losses['g'], var_list=self.g.variables)
+        d_opt = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1).minimize(losses['d'], var_list=self.d.variables)
+        with tf.control_dependencies([g_opt, d_opt]):
+            train = tf.no_op(name='train')
+        return train
 
     def sample_images(self, row=8, col=8, inputs=None):
         if inputs is None:
