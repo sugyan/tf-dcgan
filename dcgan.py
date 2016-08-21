@@ -75,8 +75,7 @@ class DCGAN:
         self.d = Discriminator(depths=[ddepth1, ddepth2, ddepth3, ddepth4])
         self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1.0, maxval=1.0)
 
-    def train(self, input_images, learning_rate=0.0002, beta1=0.5, beta2=0.999,
-              feature_matching=False):
+    def loss(self, input_images, feature_matching=False):
         outputs_from_g = self.d(self.g(self.z)[-1])
         outputs_from_i = self.d(input_images)
         logits_from_g = outputs_from_g[-1]
@@ -90,13 +89,9 @@ class DCGAN:
         tf.add_to_collection('g_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_i, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.zeros([self.batch_size], dtype=tf.int64))))
-        self.g_loss = tf.add_n(tf.get_collection('g_losses'), name='total_g_loss')
-        self.d_loss = tf.add_n(tf.get_collection('d_losses'), name='total_d_loss')
-        g_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1, beta2=beta2).minimize(g_loss, var_list=g_vars)
-        d_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1, beta2=beta2).minimize(d_loss, var_list=d_vars)
         return {
-            'g': g_optimizer,
-            'd': d_optimizer
+            'g': tf.add_n(tf.get_collection('g_losses'), name='total_g_loss'),
+            'd': tf.add_n(tf.get_collection('d_losses'), name='total_d_loss')
         }
 
     def sample_images(self, row=8, col=8, inputs=None):
