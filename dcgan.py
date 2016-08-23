@@ -12,18 +12,26 @@ class Generator:
         out = []
         with tf.variable_scope('g', reuse=self.reuse):
             # reshape from inputs
-            with tf.variable_scope('reshape'):
-                fc = tf.contrib.layers.fully_connected(inputs, i_depth[0] * self.f_size * self.f_size, normalizer_fn=tf.contrib.layers.batch_norm)
-                outputs = tf.reshape(fc, [-1, self.f_size, self.f_size, i_depth[0]])
+            inputs = tf.convert_to_tensor(inputs)
+            with tf.variable_scope('fc_reshape'):
+                w0 = tf.get_variable('w', [inputs.get_shape()[-1], i_depth[0] * self.f_size * self.f_size], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
+                b0 = tf.get_variable('b', [i_depth[0]], tf.float32, tf.zeros_initializer)
+                fc = tf.matmul(inputs, w0)
+                reshaped = tf.reshape(fc, [-1, self.f_size, self.f_size, i_depth[0]])
+                mean, variance = tf.nn.moments(reshaped, [0, 1, 2])
+                outputs = tf.nn.relu(tf.nn.batch_normalization(reshaped, mean, variance, b0, None, 1e-5))
                 out.append(outputs)
-            # deconvolution (transpose of convolution) layers
+            # deconvolution (transpose of convolution) x 4
             for i in range(4):
                 with tf.variable_scope('conv%d' % (i + 1)):
-                    activation_fn = tf.nn.relu if i < 3 else None
-                    normalizer_fn = tf.contrib.layers.batch_norm if i < 3 else None
-                    outputs = tf.contrib.layers.conv2d_transpose(outputs, o_depth[i], [5, 5], stride=2, activation_fn=activation_fn, normalizer_fn=normalizer_fn)
-                    if i == 3:
-                        outputs = tf.nn.tanh(outputs)
+                    w = tf.get_variable('w', [5, 5, o_depth[i], i_depth[i]], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
+                    b = tf.get_variable('b', [o_depth[i]], tf.float32, tf.zeros_initializer)
+                    dc = tf.nn.conv2d_transpose(outputs, w, [int(outputs.get_shape()[0]), self.f_size * 2 ** (i + 1), self.f_size * 2 ** (i + 1), o_depth[i]], [1, 2, 2, 1])
+                    if i < 3:
+                        mean, variance = tf.nn.moments(dc, [0, 1, 2])
+                        outputs = tf.nn.relu(tf.nn.batch_normalization(dc, mean, variance, b, None, 1e-5))
+                    else:
+                        outputs = tf.nn.tanh(tf.nn.bias_add(dc, b))
                     out.append(outputs)
         self.reuse = True
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
@@ -45,18 +53,22 @@ class Discriminator:
         out = []
         with tf.variable_scope('d', reuse=self.reuse):
             outputs = inputs
-            # convolution layer
+            # convolution x 4
             for i in range(4):
                 with tf.variable_scope('conv%d' % i):
-                    outputs = tf.contrib.layers.conv2d(outputs, o_depth[i], [5, 5], stride=2, activation_fn=leaky_relu, normalizer_fn=tf.contrib.layers.batch_norm)
+                    w = tf.get_variable('w', [5, 5, i_depth[i], o_depth[i]], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
+                    b = tf.get_variable('b', [o_depth[i]], tf.float32, tf.zeros_initializer)
+                    c = tf.nn.conv2d(outputs, w, [1, 2, 2, 1], 'SAME')
+                    mean, variance = tf.nn.moments(c, [0, 1, 2])
+                    outputs = leaky_relu(tf.nn.batch_normalization(c, mean, variance, b, None, 1e-5))
                     out.append(outputs)
             # reshepe and fully connect to 2 classes
             with tf.variable_scope('classify'):
                 dim = 1
                 for d in outputs.get_shape()[1:].as_list():
                     dim *= d
-                w = tf.get_variable('weights', [dim, 2], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
-                b = tf.get_variable('biases', [2], tf.float32, tf.zeros_initializer)
+                w = tf.get_variable('w', [dim, 2], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
+                b = tf.get_variable('b', [2], tf.float32, tf.zeros_initializer)
                 out.append(tf.nn.bias_add(tf.matmul(tf.reshape(outputs, [-1, dim]), w), b))
         self.reuse = True
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='d')

@@ -18,8 +18,8 @@ Deep Convolutional Generative Adversarial Networks
 
 ### Prerequisites ###
 
-- Python >= 3.5
- - TensorFlow >= 0.10.0
+- Python >= 2.7 or 3.5
+ - TensorFlow >= 0.9.0
 
 
 ### Usage ###
