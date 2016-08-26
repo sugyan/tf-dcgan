@@ -94,16 +94,16 @@ class DCGAN:
         }
 
     def build(self, input_images,
-              learning_rate=0.0002, beta1=0.5, feature_matching=False):
+              learning_rate=0.0002, beta1=0.5, feature_matching=0.0):
         """build model, generate losses, train op"""
         outputs_from_g = self.d(self.g(self.z)[-1])
         outputs_from_i = self.d(input_images)
         logits_from_g = outputs_from_g[-1]
         logits_from_i = outputs_from_i[-1]
-        if feature_matching:
+        if feature_matching > 0.0:
             features_from_g = tf.reduce_mean(outputs_from_g[-2], reduction_indices=(0))
             features_from_i = tf.reduce_mean(outputs_from_i[-2], reduction_indices=(0))
-            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(features_from_g - features_from_i), 1e-2))
+            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(features_from_g - features_from_i), feature_matching))
         tf.add_to_collection('g_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_i, tf.ones([self.batch_size], dtype=tf.int64))))
         tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.zeros([self.batch_size], dtype=tf.int64))))
