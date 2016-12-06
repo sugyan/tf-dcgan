@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 class Generator:
     def __init__(self, depths=[1024, 512, 256, 128], f_size=4):
         self.reuse = False
@@ -14,8 +15,16 @@ class Generator:
             # reshape from inputs
             inputs = tf.convert_to_tensor(inputs)
             with tf.variable_scope('fc_reshape'):
-                w0 = tf.get_variable('w', [inputs.get_shape()[-1], i_depth[0] * self.f_size * self.f_size], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
-                b0 = tf.get_variable('b', [i_depth[0]], tf.float32, tf.zeros_initializer)
+                w0 = tf.get_variable(
+                    'w',
+                    [inputs.get_shape()[-1], i_depth[0] * self.f_size * self.f_size],
+                    tf.float32,
+                    tf.truncated_normal_initializer(stddev=0.02))
+                b0 = tf.get_variable(
+                    'b',
+                    [i_depth[0]],
+                    tf.float32,
+                    tf.zeros_initializer)
                 fc = tf.matmul(inputs, w0)
                 reshaped = tf.reshape(fc, [-1, self.f_size, self.f_size, i_depth[0]])
                 mean, variance = tf.nn.moments(reshaped, [0, 1, 2])
@@ -24,9 +33,26 @@ class Generator:
             # deconvolution (transpose of convolution) x 4
             for i in range(4):
                 with tf.variable_scope('conv%d' % (i + 1)):
-                    w = tf.get_variable('w', [5, 5, o_depth[i], i_depth[i]], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
-                    b = tf.get_variable('b', [o_depth[i]], tf.float32, tf.zeros_initializer)
-                    dc = tf.nn.conv2d_transpose(outputs, w, [int(outputs.get_shape()[0]), self.f_size * 2 ** (i + 1), self.f_size * 2 ** (i + 1), o_depth[i]], [1, 2, 2, 1])
+                    w = tf.get_variable(
+                        'w',
+                        [5, 5, o_depth[i], i_depth[i]],
+                        tf.float32,
+                        tf.truncated_normal_initializer(stddev=0.02))
+                    b = tf.get_variable(
+                        'b',
+                        [o_depth[i]],
+                        tf.float32,
+                        tf.zeros_initializer)
+                    dc = tf.nn.conv2d_transpose(
+                        outputs,
+                        w,
+                        [
+                            int(outputs.get_shape()[0]),
+                            self.f_size * 2 ** (i + 1),
+                            self.f_size * 2 ** (i + 1),
+                            o_depth[i]
+                        ],
+                        [1, 2, 2, 1])
                     if i < 3:
                         mean, variance = tf.nn.moments(dc, [0, 1, 2])
                         outputs = tf.nn.relu(tf.nn.batch_normalization(dc, mean, variance, b, None, 1e-5))
@@ -39,6 +65,7 @@ class Generator:
 
     def __call__(self, inputs):
         return self.model(inputs)
+
 
 class Discriminator:
     def __init__(self, depths=[64, 128, 256, 512]):
@@ -56,8 +83,16 @@ class Discriminator:
             # convolution x 4
             for i in range(4):
                 with tf.variable_scope('conv%d' % i):
-                    w = tf.get_variable('w', [5, 5, i_depth[i], o_depth[i]], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
-                    b = tf.get_variable('b', [o_depth[i]], tf.float32, tf.zeros_initializer)
+                    w = tf.get_variable(
+                        'w',
+                        [5, 5, i_depth[i], o_depth[i]],
+                        tf.float32,
+                        tf.truncated_normal_initializer(stddev=0.02))
+                    b = tf.get_variable(
+                        'b',
+                        [o_depth[i]],
+                        tf.float32,
+                        tf.zeros_initializer)
                     c = tf.nn.conv2d(outputs, w, [1, 2, 2, 1], 'SAME')
                     mean, variance = tf.nn.moments(c, [0, 1, 2])
                     outputs = leaky_relu(tf.nn.batch_normalization(c, mean, variance, b, None, 1e-5))
@@ -77,6 +112,7 @@ class Discriminator:
     def __call__(self, inputs):
         return self.model(inputs)
 
+
 class DCGAN:
     def __init__(self,
                  batch_size=128, f_size=4, z_dim=100,
@@ -94,30 +130,44 @@ class DCGAN:
         }
 
     def build(self, input_images,
-              learning_rate=0.0002, beta1=0.5, feature_matching=0.0):
+              learning_rate=0.0002, beta1=0.5, feature_matching=False):
         """build model, generate losses, train op"""
         generated_images = self.g(self.z)[-1]
         outputs_from_g = self.d(generated_images)
         outputs_from_i = self.d(input_images)
         logits_from_g = outputs_from_g[-1]
         logits_from_i = outputs_from_i[-1]
-        if feature_matching > 0.0:
-            mean_image_from_g = tf.reduce_mean(generated_images, reduction_indices=(0))
-            mean_image_from_i = tf.reduce_mean(input_images, reduction_indices=(0))
-            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(mean_image_from_g - mean_image_from_i), feature_matching))
+        # losses
+        tf.add_to_collection(
+            'g_losses',
+            tf.reduce_mean(
+                tf.nn.sparse_softmax_cross_entropy_with_logits(
+                    logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
+        tf.add_to_collection(
+            'd_losses',
+            tf.reduce_mean(
+                tf.nn.sparse_softmax_cross_entropy_with_logits(
+                    logits_from_i, tf.ones([self.batch_size], dtype=tf.int64))))
+        tf.add_to_collection(
+            'd_losses',
+            tf.reduce_mean(
+                tf.nn.sparse_softmax_cross_entropy_with_logits(
+                    logits_from_g, tf.zeros([self.batch_size], dtype=tf.int64))))
+        if feature_matching:
             features_from_g = tf.reduce_mean(outputs_from_g[-2], reduction_indices=(0))
             features_from_i = tf.reduce_mean(outputs_from_i[-2], reduction_indices=(0))
-            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(features_from_g - features_from_i), feature_matching))
-        tf.add_to_collection('g_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
-        tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_i, tf.ones([self.batch_size], dtype=tf.int64))))
-        tf.add_to_collection('d_losses', tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits_from_g, tf.zeros([self.batch_size], dtype=tf.int64))))
+            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(features_from_g - features_from_i), 0.1))
+            mean_image_from_g = tf.reduce_mean(generated_images, reduction_indices=(0))
+            mean_image_from_i = tf.reduce_mean(input_images, reduction_indices=(0))
+            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(mean_image_from_g - mean_image_from_i), 0.01))
 
         self.losses['g'] = tf.add_n(tf.get_collection('g_losses'), name='total_g_loss')
         self.losses['d'] = tf.add_n(tf.get_collection('d_losses'), name='total_d_loss')
-
-        g_opt = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1).minimize(self.losses['g'], var_list=self.g.variables)
-        d_opt = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1).minimize(self.losses['d'], var_list=self.d.variables)
-        with tf.control_dependencies([g_opt, d_opt]):
+        g_opt = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1)
+        d_opt = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1)
+        g_opt_op = g_opt.minimize(self.losses['g'], var_list=self.g.variables)
+        d_opt_op = d_opt.minimize(self.losses['d'], var_list=self.d.variables)
+        with tf.control_dependencies([g_opt_op, d_opt_op]):
             self.train = tf.no_op(name='train')
         return self.train
 
