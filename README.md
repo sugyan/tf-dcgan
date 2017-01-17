@@ -29,7 +29,7 @@ Deep Convolutional Generative Adversarial Networks
 ```python
 dcgan = DCGAN()
 input_images = <images batch>
-train_op = dcgan.train(input_images)
+train_op = dcgan.build(input_images)
 
 with tf.Session() as sess:
     sess.run(tf.initialize_all_variables())
