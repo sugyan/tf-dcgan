@@ -131,7 +131,14 @@ class DCGAN:
 
     def build(self, input_images,
               learning_rate=0.0002, beta1=0.5, feature_matching=False):
-        """build model, generate losses, train op"""
+        """build models, generate train op.
+
+        Args:
+            input_images: 4-D Tensor of shape `[batch, height, width, channels]`.
+
+        Returns:
+            operator for training models.
+        """
         generated_images = self.g(self.z)[-1]
         outputs_from_g = self.d(generated_images)
         outputs_from_i = self.d(input_images)
