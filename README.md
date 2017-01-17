@@ -55,3 +55,8 @@ with tf.Session() as sess:
     with open(filename, 'wb') as f:
         f.write(generated)
 ```
+
+
+### Example ###
+
+- https://github.com/sugyan/face-generator
