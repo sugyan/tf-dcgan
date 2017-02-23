@@ -24,7 +24,7 @@ class Generator:
                     'b',
                     [i_depth[0]],
                     tf.float32,
-                    tf.zeros_initializer)
+                    tf.zeros_initializer())
                 fc = tf.matmul(inputs, w0)
                 reshaped = tf.reshape(fc, [-1, self.f_size, self.f_size, i_depth[0]])
                 mean, variance = tf.nn.moments(reshaped, [0, 1, 2])
@@ -42,7 +42,7 @@ class Generator:
                         'b',
                         [o_depth[i]],
                         tf.float32,
-                        tf.zeros_initializer)
+                        tf.zeros_initializer())
                     dc = tf.nn.conv2d_transpose(
                         outputs,
                         w,
@@ -92,7 +92,7 @@ class Discriminator:
                         'b',
                         [o_depth[i]],
                         tf.float32,
-                        tf.zeros_initializer)
+                        tf.zeros_initializer())
                     c = tf.nn.conv2d(outputs, w, [1, 2, 2, 1], 'SAME')
                     mean, variance = tf.nn.moments(c, [0, 1, 2])
                     outputs = leaky_relu(tf.nn.batch_normalization(c, mean, variance, b, None, 1e-5))
@@ -103,7 +103,7 @@ class Discriminator:
                 for d in outputs.get_shape()[1:].as_list():
                     dim *= d
                 w = tf.get_variable('w', [dim, 2], tf.float32, tf.truncated_normal_initializer(stddev=0.02))
-                b = tf.get_variable('b', [2], tf.float32, tf.zeros_initializer)
+                b = tf.get_variable('b', [2], tf.float32, tf.zeros_initializer())
                 out.append(tf.nn.bias_add(tf.matmul(tf.reshape(outputs, [-1, dim]), w), b))
         self.reuse = True
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='d')
@@ -149,24 +149,27 @@ class DCGAN:
             'g_losses',
             tf.reduce_mean(
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    logits_from_g, tf.ones([self.batch_size], dtype=tf.int64))))
+                    labels=tf.ones([self.batch_size], dtype=tf.int64),
+                    logits=logits_from_g)))
         tf.add_to_collection(
             'd_losses',
             tf.reduce_mean(
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    logits_from_i, tf.ones([self.batch_size], dtype=tf.int64))))
+                    labels=tf.ones([self.batch_size], dtype=tf.int64),
+                    logits=logits_from_i)))
         tf.add_to_collection(
             'd_losses',
             tf.reduce_mean(
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    logits_from_g, tf.zeros([self.batch_size], dtype=tf.int64))))
+                    labels=tf.zeros([self.batch_size], dtype=tf.int64),
+                    logits=logits_from_g)))
         if feature_matching:
             features_from_g = tf.reduce_mean(outputs_from_g[-2], reduction_indices=(0))
             features_from_i = tf.reduce_mean(outputs_from_i[-2], reduction_indices=(0))
-            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(features_from_g - features_from_i), 0.1))
+            tf.add_to_collection('g_losses', tf.multiply(tf.nn.l2_loss(features_from_g - features_from_i), 0.1))
             mean_image_from_g = tf.reduce_mean(generated_images, reduction_indices=(0))
             mean_image_from_i = tf.reduce_mean(input_images, reduction_indices=(0))
-            tf.add_to_collection('g_losses', tf.mul(tf.nn.l2_loss(mean_image_from_g - mean_image_from_i), 0.01))
+            tf.add_to_collection('g_losses', tf.multiply(tf.nn.l2_loss(mean_image_from_g - mean_image_from_i), 0.01))
 
         self.losses['g'] = tf.add_n(tf.get_collection('g_losses'), name='total_g_loss')
         self.losses['d'] = tf.add_n(tf.get_collection('d_losses'), name='total_d_loss')
@@ -181,10 +184,10 @@ class DCGAN:
     def sample_images(self, row=8, col=8, inputs=None):
         if inputs is None:
             inputs = self.z
-        images = tf.cast(tf.mul(tf.add(self.g(inputs)[-1], 1.0), 127.5), tf.uint8)
-        images = [image for image in tf.split(0, self.batch_size, images)]
+        images = tf.cast(tf.multiply(tf.add(self.g(inputs)[-1], 1.0), 127.5), tf.uint8)
+        images = [image for image in tf.split(images, self.batch_size, axis=0)]
         rows = []
         for i in range(row):
-            rows.append(tf.concat(2, images[col * i + 0:col * i + col]))
-        image = tf.concat(1, rows)
+            rows.append(tf.concat(images[col * i + 0:col * i + col], 2))
+        image = tf.concat(rows, 1)
         return tf.image.encode_jpeg(tf.squeeze(image, [0]))
