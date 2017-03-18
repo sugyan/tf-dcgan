@@ -29,17 +29,15 @@ Deep Convolutional Generative Adversarial Networks
 ```python
 dcgan = DCGAN()
 train_images = <images batch>
-train_op = dcgan.train(dcgan.loss(train_images))
+losses = dcgan.loss(train_images)
+train_op = dcgan.train(losses)
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
 
     for step in range(FLAGS.max_steps):
-        start_time = time.time()
         _, g_loss_value, d_loss_value = sess.run([train_op, losses[dcgan.g], losses[dcgan.d]])
-        duration = time.time() - start_time
-        format_str = 'step %d, loss = (G: %.8f, D: %.8f) (%.3f sec/batch)'
-        print(format_str % (step, g_loss_value, d_loss_value, duration))
+    # save trained variables
 ```
 
 #### Generate ####
@@ -49,10 +47,10 @@ dcgan = DCGAN()
 images = dcgan.sample_images()
 
 with tf.Session() as sess:
-    # restore trained data
+    # restore trained variables
 
     generated = sess.run(images)
-    with open(filename, 'wb') as f:
+    with open('<filename>', 'wb') as f:
         f.write(generated)
 ```
 
