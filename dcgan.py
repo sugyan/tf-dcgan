@@ -2,29 +2,29 @@ import tensorflow as tf
 
 
 class Generator:
-    def __init__(self, depths=[1024, 512, 256, 128], f_size=4):
-        self.f_size = f_size
+    def __init__(self, depths=[1024, 512, 256, 128], s_size=4):
         self.depths = depths + [3]
+        self.s_size = s_size
         self.reuse = False
 
-    def __call__(self, inputs):
+    def __call__(self, inputs, training=False):
         inputs = tf.convert_to_tensor(inputs)
         with tf.variable_scope('g', reuse=self.reuse):
             # reshape from inputs
             with tf.variable_scope('reshape'):
-                outputs = tf.layers.dense(inputs, self.depths[0] * self.f_size * self.f_size)
-                outputs = tf.reshape(outputs, [-1, self.f_size, self.f_size, self.depths[0]])
-                outputs = tf.nn.relu(tf.layers.batch_normalization(outputs), name='outputs')
+                outputs = tf.layers.dense(inputs, self.depths[0] * self.s_size * self.s_size)
+                outputs = tf.reshape(outputs, [-1, self.s_size, self.s_size, self.depths[0]])
+                outputs = tf.nn.relu(tf.layers.batch_normalization(outputs, training=training), name='outputs')
             # deconvolution (transpose of convolution) x 4
             with tf.variable_scope('deconv1'):
                 outputs = tf.layers.conv2d_transpose(outputs, self.depths[1], [5, 5], strides=(2, 2), padding='SAME')
-                outputs = tf.nn.relu(tf.layers.batch_normalization(outputs), name='outputs')
+                outputs = tf.nn.relu(tf.layers.batch_normalization(outputs, training=training), name='outputs')
             with tf.variable_scope('deconv2'):
                 outputs = tf.layers.conv2d_transpose(outputs, self.depths[2], [5, 5], strides=(2, 2), padding='SAME')
-                outputs = tf.nn.relu(tf.layers.batch_normalization(outputs), name='outputs')
+                outputs = tf.nn.relu(tf.layers.batch_normalization(outputs, training=training), name='outputs')
             with tf.variable_scope('deconv3'):
                 outputs = tf.layers.conv2d_transpose(outputs, self.depths[3], [5, 5], strides=(2, 2), padding='SAME')
-                outputs = tf.nn.relu(tf.layers.batch_normalization(outputs), name='outputs')
+                outputs = tf.nn.relu(tf.layers.batch_normalization(outputs, training=training), name='outputs')
             with tf.variable_scope('deconv4'):
                 outputs = tf.layers.conv2d_transpose(outputs, self.depths[4], [5, 5], strides=(2, 2), padding='SAME')
             # output images
@@ -40,7 +40,7 @@ class Discriminator:
         self.depths = [3] + depths
         self.reuse = False
 
-    def __call__(self, inputs):
+    def __call__(self, inputs, training=False):
         def leaky_relu(x, leak=0.2, name=''):
             return tf.maximum(x, x * leak, name=name)
         outputs = tf.convert_to_tensor(inputs)
@@ -48,16 +48,16 @@ class Discriminator:
             # convolution x 4
             with tf.variable_scope('conv1'):
                 outputs = tf.layers.conv2d(outputs, self.depths[1], [5, 5], strides=(2, 2), padding='SAME')
-                outputs = leaky_relu(tf.layers.batch_normalization(outputs), name='outputs')
+                outputs = leaky_relu(tf.layers.batch_normalization(outputs, training=training), name='outputs')
             with tf.variable_scope('conv2'):
                 outputs = tf.layers.conv2d(outputs, self.depths[2], [5, 5], strides=(2, 2), padding='SAME')
-                outputs = leaky_relu(tf.layers.batch_normalization(outputs), name='outputs')
+                outputs = leaky_relu(tf.layers.batch_normalization(outputs, training=training), name='outputs')
             with tf.variable_scope('conv3'):
                 outputs = tf.layers.conv2d(outputs, self.depths[3], [5, 5], strides=(2, 2), padding='SAME')
-                outputs = leaky_relu(tf.layers.batch_normalization(outputs), name='outputs')
+                outputs = leaky_relu(tf.layers.batch_normalization(outputs, training=training), name='outputs')
             with tf.variable_scope('conv4'):
                 outputs = tf.layers.conv2d(outputs, self.depths[4], [5, 5], strides=(2, 2), padding='SAME')
-                outputs = leaky_relu(tf.layers.batch_normalization(outputs), name='outputs')
+                outputs = leaky_relu(tf.layers.batch_normalization(outputs, training=training), name='outputs')
             with tf.variable_scope('classify'):
                 batch_size = outputs.get_shape()[0].value
                 reshape = tf.reshape(outputs, [batch_size, -1])
@@ -69,13 +69,13 @@ class Discriminator:
 
 class DCGAN:
     def __init__(self,
-                 batch_size=128, f_size=4, z_dim=100,
+                 batch_size=128, s_size=4, z_dim=100,
                  g_depths=[1024, 512, 256, 128],
                  d_depths=[64, 128, 256, 512]):
         self.batch_size = batch_size
-        self.f_size = f_size
+        self.s_size = s_size
         self.z_dim = z_dim
-        self.g = Generator(depths=g_depths, f_size=self.f_size)
+        self.g = Generator(depths=g_depths, s_size=self.s_size)
         self.d = Discriminator(depths=d_depths)
         self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1.0, maxval=1.0)
 
@@ -88,9 +88,9 @@ class DCGAN:
         Returns:
             dict of each models' losses.
         """
-        generated = self.g(self.z)
-        g_outputs = self.d(generated)
-        t_outputs = self.d(traindata)
+        generated = self.g(self.z, training=True)
+        g_outputs = self.d(generated, training=True)
+        t_outputs = self.d(traindata, training=True)
         # add each losses to collection
         tf.add_to_collection(
             'g_losses',
@@ -133,7 +133,8 @@ class DCGAN:
     def sample_images(self, row=8, col=8, inputs=None):
         if inputs is None:
             inputs = self.z
-        images = tf.cast(tf.multiply(tf.add(self.g(inputs)[-1], 1.0), 127.5), tf.uint8)
+        images = self.g(inputs, training=True)
+        images = tf.image.convert_image_dtype(tf.div(tf.add(images, 1.0), 2.0), tf.uint8)
         images = [image for image in tf.split(images, self.batch_size, axis=0)]
         rows = []
         for i in range(row):
