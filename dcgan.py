@@ -40,11 +40,12 @@ class Discriminator:
         self.depths = [3] + depths
         self.reuse = False
 
-    def __call__(self, inputs, training=False):
+    def __call__(self, inputs, training=False, name=''):
         def leaky_relu(x, leak=0.2, name=''):
             return tf.maximum(x, x * leak, name=name)
         outputs = tf.convert_to_tensor(inputs)
-        with tf.variable_scope('d', reuse=self.reuse):
+
+        with tf.name_scope('d' + name), tf.variable_scope('d', reuse=self.reuse):
             # convolution x 4
             with tf.variable_scope('conv1'):
                 outputs = tf.layers.conv2d(outputs, self.depths[1], [5, 5], strides=(2, 2), padding='SAME')
@@ -89,8 +90,8 @@ class DCGAN:
             dict of each models' losses.
         """
         generated = self.g(self.z, training=True)
-        g_outputs = self.d(generated, training=True)
-        t_outputs = self.d(traindata, training=True)
+        g_outputs = self.d(generated, training=True, name='g')
+        t_outputs = self.d(traindata, training=True, name='t')
         # add each losses to collection
         tf.add_to_collection(
             'g_losses',
